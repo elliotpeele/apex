@@ -47,7 +47,12 @@ from apex.lib.flash import flash
 def includeme(config):
     settings = config.registry.settings
 
-    initialize_sql(engine_from_config(settings, 'sqlalchemy.'), settings)
+    if hasattr(config.registry, 'engine'):
+        engine = config.registry.engine
+    else:
+        engine = engine_from_config(settings, 'sqlalchemy.')
+
+    initialize_sql(engine, settings)
 
     config.registry.registerUtility(ApexImplementation, IApex)
     config.add_translation_dirs('apex:locale/')
