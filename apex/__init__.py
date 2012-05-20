@@ -91,8 +91,9 @@ def includeme(config):
     if not settings.get('mako.directories'):
         config.add_settings({'mako.directories': ['apex:templates']})
 
-    config.add_subscriber('apex.lib.subscribers.csrf_validation',
-                          'pyramid.events.ContextFound')
+    if not settings.get('apex.csrf_disabled', False):
+        config.add_subscriber('apex.lib.subscribers.csrf_validation',
+                              'pyramid.events.ContextFound')
     config.add_subscriber('apex.lib.subscribers.add_renderer_globals',
                           'pyramid.events.BeforeRender')
 
