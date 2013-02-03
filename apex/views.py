@@ -361,7 +361,8 @@ def forbidden(request):
     **THIS WILL BREAK EVENTUALLY**
     **THIS DID BREAK WITH Pyramid 1.2a3**
     """
-    if request.environ.has_key('bfg.routes.route'):
+    has_key = request.environ.has_key
+    if has_key('bfg.routes.route') or has_key('matched_route'):
         flash(_('Not logged in, please log in'), 'error')
         return HTTPFound(location='%s?came_from=%s' %
                         (route_url('apex_login', request),
