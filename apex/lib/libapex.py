@@ -3,11 +3,11 @@ try:
 except ImportError:
     import simplejson as json
 
-from velruse.store.sqlstore import KeyStorage
-
+import requests
 from sqlalchemy.orm.exc import NoResultFound
 
 from pyramid.decorator import reify
+from pyramid.httpexceptions import HTTPBadRequest
 from pyramid.security import Allow
 from pyramid.security import authenticated_userid
 from pyramid.security import Everyone
@@ -84,17 +84,22 @@ If you did not make this request, you can safely ignore it.
 """),
         }
 
-def apexid_from_token(token):
+def apexid_from_token(request):
     """ Returns the apex id from the OpenID Token
     """
     dbsession = DBSession()
-    auth = json.loads(dbsession.query(KeyStorage.value). \
-                      filter(KeyStorage.key==token).one()[0])
-    if 'profile' in auth:
-        auth['id'] = auth['profile']['accounts'][0]['userid']
-        auth['provider'] = auth['profile']['accounts'][0]['domain']
-        return auth
-    return None
+    payload = {'format': 'json', 'token': request.POST['token']}
+    velruse = requests.get(request.host_url + '/velruse/auth_info', \
+        params=payload)
+    if velruse.status_code == 200:
+        auth = velruse.json
+        if 'profile' in auth:
+            auth['id'] = auth['profile']['accounts'][0]['userid']
+            auth['provider'] = auth['profile']['accounts'][0]['domain']
+            return auth
+        return None
+    else:
+        raise HTTPBadRequest(_('Velruse backing store unavailable'))
 
 def groupfinder(userid, request):
     """ Returns ACL formatted list of groups for the userid in the
@@ -197,19 +202,32 @@ def create_user(**kwargs):
 
     from apex.lib.libapex import create_user
 
-    create_user(username='test', password='my_password', active='Y', group='group')
+    create_user(username='test', password='my_password', active='Y')
+
+    Optional Parameters:
+
+    display_name
+    group
 
 
-    Returns: AuthUser object
+
+    Returns: AuthID object
     """
-    user = AuthUser()
+    auth_id = AuthID(active=kwargs.get('active', 'Y'))
+    if 'display_name' in kwargs:
+        user.display_name = kwargs['display_name']
+        del kwargs['display_name']
+
+    user = AuthUser(login=kwargs['username'], password=kwargs['password'], \
+               active=kwargs.get('active', 'Y'))
+    auth_id.users.append(user)
 
     if 'group' in kwargs:
         try:
             group = DBSession.query(AuthGroup). \
             filter(AuthGroup.name==kwargs['group']).one()
 
-            user.groups.append(group)
+            auth_id.groups.append(group)
         except NoResultFound:
             pass
 
@@ -248,18 +266,25 @@ def get_module(package):
     resolver = DottedNameResolver(package.split('.', 1)[0])
     return resolver.resolve(package)
 
-def apex_remember(request, user):
+def apex_remember(request, user, max_age=None):
     if asbool(apex_settings('log_logins')):
         if apex_settings('log_login_header'):
-            ip_addr=request.environ.get(apex_settings('log_login_header'), \
+            ip_addr = request.environ.get(apex_settings('log_login_header'), \
                     u'invalid value - apex.log_login_header')
         else:
-             ip_addr=request.environ['REMOTE_ADDR']
+             ip_addr = unicode(request.environ['REMOTE_ADDR'])
         record = AuthUserLog(auth_id=user.auth_id, user_id=user.id, \
             ip_addr=ip_addr)
         DBSession.add(record)
         DBSession.flush()
-    return remember(request, user.auth_id)
+    return remember(request, user.auth_id, max_age=max_age)
+
+def get_came_from(request):
+    return request.GET.get('came_from',
+                           request.POST.get(
+                               'came_from',
+                               route_url(apex_settings('came_from_route'), request))
+                          )
 
 class RequestFactory(Request):
     """ Custom Request factory, that adds the user context

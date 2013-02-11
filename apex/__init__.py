@@ -6,7 +6,6 @@ from sqlalchemy import engine_from_config
 
 from pyramid.authentication import AuthTktAuthenticationPolicy
 from pyramid.authorization import ACLAuthorizationPolicy
-from pyramid.exceptions import Forbidden
 from pyramid.interfaces import IAuthenticationPolicy
 from pyramid.interfaces import IAuthorizationPolicy
 from pyramid.interfaces import ISessionFactory
@@ -99,7 +98,7 @@ def includeme(config):
 
     config.add_static_view('apex/static', 'apex:static')
 
-    config.add_view(forbidden, context=Forbidden)
+    config.add_forbidden_view(forbidden)
 
     render_template = settings['apex.apex_render_template'
                               ] = settings.get('apex.apex_template',

@@ -23,6 +23,7 @@ from apex.lib.libapex import (apex_email_forgot,
                               apex_remember,
                               apex_settings,
                               generate_velruse_forms,
+                              get_came_from,
                               get_module)
 from apex.lib.flash import flash
 from apex.lib.form import ExtendedForm
@@ -34,14 +35,6 @@ from apex.forms import ChangePasswordForm
 from apex.forms import ForgotForm
 from apex.forms import ResetPasswordForm
 from apex.forms import LoginForm
-
-
-def get_came_from(request):
-    return request.GET.get('came_from', 
-                           request.POST.get(
-                               'came_from',  
-                               route_url(apex_settings('came_from_route'), request))
-                          ) 
 
 
 def login(request):
@@ -71,7 +64,8 @@ def login(request):
     if request.method == 'POST' and form.validate():
         user = AuthUser.get_by_login(form.data.get('login'))
         if user:
-            headers = apex_remember(request, user)
+            headers = apex_remember(request, user, \
+                max_age=apex_settings('max_cookie_age', None))
             return HTTPFound(location=came_from, headers=headers)
 
     return {'title': title, 'form': form, 'velruse_forms': velruse_forms, \
@@ -260,10 +254,11 @@ def apex_callback(request):
                 route_url(apex_settings('came_from_route'), request))
     headers = []
     if 'token' in request.POST:
-        auth = apexid_from_token(request.POST['token'])
+        auth = apexid_from_token(request)
         if auth:
-            user = AuthUser.get_by_login(auth['userid'])
+            user = AuthUser.get_by_login(auth['id'])
             if not user:
+                auth_info = auth['profile']['accounts'][0]
                 id = AuthID()
                 DBSession.add(id)
                 user = AuthUser(
@@ -281,7 +276,7 @@ def apex_callback(request):
                         id.groups.append(group)
                 if apex_settings('create_openid_after'):
                     openid_after = get_module(apex_settings('create_openid_after'))
-                    openid_after().after_signup(user)
+                    openid_after().after_signup(request=request, user=user)
                 DBSession.flush()
             if apex_settings('openid_required'):
                 openid_required = False
@@ -361,15 +356,13 @@ def forbidden(request):
     **THIS WILL BREAK EVENTUALLY**
     **THIS DID BREAK WITH Pyramid 1.2a3**
     """
-    has_key = request.environ.has_key
-    if has_key('bfg.routes.route') or has_key('matched_route'):
+    if request.matched_route:
         flash(_('Not logged in, please log in'), 'error')
         return HTTPFound(location='%s?came_from=%s' %
                         (route_url('apex_login', request),
                         current_route_url(request)))
     else:
-        return Response(request.environ.get('repoze.bfg.message', \
-                        'Unknown error message'))
+        return Response('Unknown error message')
 
 def edit(request):
     """ edit(request)

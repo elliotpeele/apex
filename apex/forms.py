@@ -51,11 +51,11 @@ class RegisterForm(ExtendedForm):
 
     def save(self):
         new_user = self.create_user(self.data['login'])
-        self.after_signup(new_user)
+        self.after_signup(user=new_user)
 
         return new_user
 
-    def after_signup(self, user, **kwargs):
+    def after_signup(self, **kwargs):
         """ Function to be overloaded and called after form submission
         to allow you the ability to save additional form data or perform
         extra actions after the form submission.

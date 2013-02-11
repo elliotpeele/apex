@@ -16,7 +16,6 @@ settings = {
     'apex.session_secret':'session_secret',
     'apex.auth_secret':'auth_secret',
     'apex.came_from_route':'home',
-    'apex.velruse_config':'{0}/CONFIG.yaml'.format(here),
     'apex.use_recaptcha_on_login': 'false',
 }
 
@@ -38,7 +37,6 @@ class BaseTestCase(unittest.TestCase):
         DBSession.close()
         from apex.models import Base
         Base.metadata.drop_all(cls.engine)
-
 
     def setUp(self):
         self.config = testing.setUp()
